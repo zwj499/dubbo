@@ -1,0 +1,29 @@
+dubbo:
+  application:
+    name: dubbo-consumer
+  registry:
+    address: localhost:2181
+    protocol: zookeeper
+    check: false
+  monitor:
+    protocol: register
+  consumer:
+    check: false
+    timeout: 3000
+
+server:
+  port: 9101
+
+spring:
+  redis:
+    host: localhost
+    pool: 6379
+    database: 0
+    jedis:
+      pool:
+        min-idle: 10
+        max-idle: 25
+        max-wait: -1
+        max-active: 100
+  application:
+    name: consumer
