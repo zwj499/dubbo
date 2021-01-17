@@ -2,7 +2,10 @@ package com.example.provider.service;
 
 import com.example.api.constants.RedisConstant;
 import com.example.api.service.DemoService;
+import com.example.provider.lock.RedisLock;
 import org.apache.dubbo.config.annotation.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -20,6 +23,10 @@ import java.util.concurrent.TimeUnit;
 @Service(weight = 2)
 public class DemoServiceImpl implements DemoService {
 
+    private Logger logger = LoggerFactory.getLogger(DemoServiceImpl.class);
+
+    @Autowired
+    private RedisLock redisLock;
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
 
@@ -27,10 +34,7 @@ public class DemoServiceImpl implements DemoService {
     public String sayHello(String name) {
         UUID uuid = UUID.randomUUID();
         try {
-            Boolean lock = stringRedisTemplate.opsForValue().setIfAbsent(RedisConstant.REDIS_LOCK_FOR_PRODUCT_NUM, uuid.toString(), 5, TimeUnit.SECONDS);
-            if (!lock) {
-                sayHello(name);
-            }
+            redisLock.lock(RedisConstant.REDIS_LOCK_FOR_PRODUCT_NUM, uuid.toString());
             String num = stringRedisTemplate.opsForValue().get(RedisConstant.PRODUCT_NUM);
             try {
                 Thread.sleep(10);
@@ -46,12 +50,8 @@ public class DemoServiceImpl implements DemoService {
         } catch (Exception e) {
             return "商品购买失败，原因：" + e.getLocalizedMessage();
         } finally {
-            String script = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
-            DefaultRedisScript<Boolean> redisScript = new DefaultRedisScript();
-            redisScript.setResultType(Boolean.class);
-            redisScript.setScriptText(script);
-            Boolean execute = stringRedisTemplate.execute(redisScript, Collections.singletonList(RedisConstant.REDIS_LOCK_FOR_PRODUCT_NUM),
-                    uuid.toString());
+            boolean unlock = redisLock.unlock(RedisConstant.REDIS_LOCK_FOR_PRODUCT_NUM, uuid.toString());
+            logger.info(unlock ? "解锁成功" : "解锁失败");
         }
     }
 }
